@@ -69,10 +69,10 @@ class ProxyAPNHandler:
 
         if ProxyRewrite.file_logging:
             if ProxyRewrite.unique_log_dir:
-                logdir = ("logs_%s" % ProxyRewrite.dev1info['SerialNumber'])
+                logdir = f"logs_{ProxyRewrite.dev1info['SerialNumber']}"
             else:
                 logdir = "logs"
-            self.apnslogger = open(("%s/APNS.log" % logdir), "ab")
+            self.apnslogger = open(f"{logdir}/APNS.log", "ab")
 
         self.server.bind((host, port))
         self.server.listen(200)
@@ -120,7 +120,7 @@ class ProxyAPNHandler:
                 print(cert.get_subject())
             except:
                 cert = None
-            if certs == None: certs = []
+            if certs is None: certs = []
             certs.append(certdata)
             index = index + length
         return certs
@@ -229,12 +229,8 @@ class ProxyAPNHandler:
 
     def on_recv(self):
         data = self.data
-        cert = self.extract_client_cert(data)
-        if cert:
+        if cert := self.extract_client_cert(data):
             print("Received client APN SSL cert")
-            #self.on_close()
-            #ProxyRewrite.apnproxyssl = True
-            #return
         if ProxyRewrite.file_logging and self.apnslogger:
             try:
                 self.apnslogger.write(data)

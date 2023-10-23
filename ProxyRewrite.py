@@ -80,19 +80,18 @@ class ProxyRewrite:
 
     @staticmethod
     def load_device_info(sn):
-        if '.xml' in sn:
-            device = plistlib.readPlist(sn)
-        else:
-            device = plistlib.readPlist("devices/%s.xml" % sn)
-        return device
+        return (
+            plistlib.readPlist(sn)
+            if '.xml' in sn
+            else plistlib.readPlist(f"devices/{sn}.xml")
+        )
 
     @staticmethod
     def intercept_this_host(hostname):
         hostname = hostname.replace(':443','')
         if ProxyRewrite.is_courier_push_ip(hostname): return False
-        # always intercept IP addresses
-        isip=re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$",hostname)
-        if isip: return True
+        if isip := re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", hostname):
+            return True
         if 'spcsdns.net' in hostname or 'sprint.com' in hostname: return True
         if "apple.com" not in hostname and "icloud.com" not in hostname and "itunes.com" not in hostname and 'apple-cloudkit.com' not in hostname and 'apple-cdn.com' not in hostname: return False
 
@@ -105,22 +104,13 @@ class ProxyRewrite:
             if hostname == "gsa.apple.com": return False
             if hostname == "gsas.apple.com": return False
 
-        if hostname == "ppq.apple.com": return False
-        elif hostname == "iphonesystdw.corp.apple.com": return False
-        #if hostname == "albert.apple.com": return False
-        #if hostname == "static.ips.apple.com": return False
-        #if hostname == "captive.apple.com": return False
-        return True
+        return hostname not in ["ppq.apple.com", "iphonesystdw.corp.apple.com"]
 
     @staticmethod
     def get_hostname(headers, path):
         hostname = None
-        if 'Host' in headers:
-            hostname = headers['Host']
-            hostname = hostname.replace(':443','')
-        else:
-            hostname = path.split(':')[0]
-            hostname = hostname.replace(':443','')
+        hostname = headers['Host'] if 'Host' in headers else path.split(':')[0]
+        hostname = hostname.replace(':443','')
         return hostname
 
     @staticmethod
@@ -128,9 +118,9 @@ class ProxyRewrite:
         SO_ORIGINAL_DST = 80
         dst = sock.getsockopt(socket.SOL_IP, SO_ORIGINAL_DST, 16) # Get the original destination IP before iptables redirect
         _, dst_port, ip1, ip2, ip3, ip4 = struct.unpack("!HHBBBB8x", dst)
-        dst_ip = '%s.%s.%s.%s' % (ip1,ip2,ip3,ip4)
-        peername = '%s:%s' % (sock.getpeername()[0], sock.getpeername()[1])
-        print('Client %s -> %s:%s' % (peername, dst_ip, dst_port))
+        dst_ip = f'{ip1}.{ip2}.{ip3}.{ip4}'
+        peername = f'{sock.getpeername()[0]}:{sock.getpeername()[1]}'
+        print(f'Client {peername} -> {dst_ip}:{dst_port}')
         return dst_ip, dst_port
 
     @staticmethod
@@ -138,11 +128,10 @@ class ProxyRewrite:
         if ProxyRewrite.unique_log_dir:
             dev1sn = ProxyRewrite.dev1info['SerialNumber']
             dev2sn = ProxyRewrite.dev2info['SerialNumber']
-            logdir = ("logs_%s_%s" % (dev1sn, dev2sn))
+            logdir = f"logs_{dev1sn}_{dev2sn}"
         else:
             logdir = "logs"
-        if filename == '': return logdir
-        return ("%s/%s" % (logdir, filename))
+        return logdir if filename == '' else f"{logdir}/{filename}"
 
     @staticmethod
     def log_filename_write(filename, data):
@@ -161,7 +150,7 @@ class ProxyRewrite:
     def replace_hostname_body(text, oldhost, newhost):
         if oldhost in text:
             text = text.replace(oldhost, newhost)
-            print("Replaced %s with %s" % (oldhost, newhost))
+            print(f"Replaced {oldhost} with {newhost}")
         return text
 
     @staticmethod
@@ -171,24 +160,18 @@ class ProxyRewrite:
     @staticmethod
     def save_plist_body_attrib(text, attrname, subname):
         p = plistlib.readPlistFromString(text)
-        if subname != '' and subname in p:
-            psub = p[subname]
-        else:
-            psub = p
+        psub = p[subname] if subname != '' and subname in p else p
         if attrname in psub:
-            print("found %s in body" % (attrname))
+            print(f"found {attrname} in body")
             return psub[attrname]
         return ''
 
     @staticmethod
     def save_json_body_attrib(text, attrname, subname):
         json_obj = json.loads(text)
-        if subname != '' and subname in json_obj:
-            jsub = json_obj[subname]
-        else:
-            jsub = json_obj
+        jsub = json_obj[subname] if subname != '' and subname in json_obj else json_obj
         if attrname in jsub:
-            print("found %s in body: %s" % (attrname, jsub[attrname]))
+            print(f"found {attrname} in body: {jsub[attrname]}")
             return jsub[attrname]
         return ''
 
@@ -202,7 +185,7 @@ class ProxyRewrite:
                 for field in fieldlist[:-1]:
                     json_obj = json_obj[field]
             json_obj[fields] = value
-            print ("Setting field %s to %s" % (fields, value))
+            print(f"Setting field {fields} to {value}")
             return json.dumps(json_obj)
         except ValueError:
             return text
@@ -218,7 +201,7 @@ class ProxyRewrite:
                  json_obj = json_obj[field]
             if json_obj[fields] == oldval:
                 json_obj[fields] = newval
-                print("replacing field %s: %s -> %s" % (fields, oldval, newval))
+                print(f"replacing field {fields}: {oldval} -> {newval}")
             return json.dumps(json_obj)
         except ValueError:
             return text
@@ -226,13 +209,12 @@ class ProxyRewrite:
     @staticmethod
     def rewrite_json_body_attribs(headers, text, attrdict, subname):
         j = json.loads(text)
-        if subname != '' and subname in j:
-            jsub = j[subname]
-        else:
-            jsub = j
+        jsub = j[subname] if subname != '' and subname in j else j
         for (key, value) in attrdict.items():
             if value in ProxyRewrite.dev2info:
-                print("setting body json attrib %s to value %s" % (key, ProxyRewrite.dev2info[value]))
+                print(
+                    f"setting body json attrib {key} to value {ProxyRewrite.dev2info[value]}"
+                )
                 jsub[key] = ProxyRewrite.dev2info[value]
         if subname != '' and subname in j:
             j[subname] = jsub
@@ -244,13 +226,12 @@ class ProxyRewrite:
     @staticmethod
     def rewrite_plist_body_attribs(headers, text, attrdict, subname):
         p = plistlib.readPlistFromString(text)
-        if subname != '' and subname in p:
-            psub = p[subname]
-        else:
-            psub = p
+        psub = p[subname] if subname != '' and subname in p else p
         for (key, value) in attrdict.items():
             if value in ProxyRewrite.dev2info:
-                print("setting body plist attrib %s to value %s" % (key, ProxyRewrite.dev2info[value]))
+                print(
+                    f"setting body plist attrib {key} to value {ProxyRewrite.dev2info[value]}"
+                )
                 psub[key] = ProxyRewrite.dev2info[value]
         if subname != '' and subname in p:
             p[subname] = psub
@@ -262,15 +243,14 @@ class ProxyRewrite:
     # extract only plist (ignore extra junk such as boundary)
     @staticmethod
     def get_plist_body_activation(headers, text):
-        if headers['Content-Type'] == 'application/x-plist': return
-        elif headers['Content-Type'] == 'application/xml': return
+        if headers['Content-Type'] in ['application/x-plist', 'application/xml']: return
         return text[text.find('<?xml'):text.find('</plist>')+8]
 
     @staticmethod
     def rewrite_plist_body_activation(headers, text):
         xml = get_plist_body_activation(headers, text)
         boundary = headers['Content-Type'].split('=')[1]
-        print("Boundary = %s" % boundary)
+        print(f"Boundary = {boundary}")
         p = plistlib.readPlistFromString(xml)
         if 'ActivationInfoXML' in p:
             filename = ProxyRewrite.log_filename("ActivationInfoXML.plist")
@@ -289,13 +269,13 @@ class ProxyRewrite:
 
         attribs = 'BluetoothAddress,EthernetAddress,ModelNumber,ProductType,SerialNumber,UniqueDeviceID,UniqueChipID,WifiAddress,DeviceClass'
         if ProxyRewrite.rewriteOSVersion == True:
-            attribs = ("%s,%s,%s" % (attribs, 'BuildVersion', 'ProductVersion'))
+            attribs = f"{attribs},BuildVersion,ProductVersion"
         if 'InternationalMobileEquipmentIdentity' in ProxyRewrite.dev1info:
-            attribs = ("%s,%s" % (attribs, 'InternationalMobileEquipmentIdentity'))
+            attribs = f"{attribs},InternationalMobileEquipmentIdentity"
         if 'MobileEquipmentIdentifier' in ProxyRewrite.dev1info:
-            attribs = ("%s,%s" % (attribs, 'MobileEquipmentIdentifier'))
+            attribs = f"{attribs},MobileEquipmentIdentifier"
         if 'RegulatoryModelNumber' in ProxyRewrite.dev1info:
-            attribs = ("%s,%s" % (attribs, 'RegulatoryModelNumber'))
+            attribs = f"{attribs},RegulatoryModelNumber"
         text_modified = ProxyRewrite.rewrite_body_attribs(str(p['ActivationInfoXML']), attribs, '')
         p['ActivationInfoXML'] = base64.b64encode(text_modified.replace('\\t','\t').replace('\\n', '\n'))
         text = ("--%s\nContent-Disposition: form-data; name=\"activation-info\"\n\n%s\n--%s--" % (boundary,plistlib.writePlistToString(p),boundary))
@@ -305,7 +285,7 @@ class ProxyRewrite:
     def rewrite_plist_body_activation_new(headers, text):
         xml = ProxyRewrite.get_plist_body_activation(headers, text)
         boundary = headers['Content-Type'].split('=')[1]
-        print("Boundary = %s" % boundary)
+        print(f"Boundary = {boundary}")
         p = plistlib.readPlistFromString(xml)
         p1 = plistlib.readPlistFromString(p['ActivationInfoXML'].data)
         if 'ActivationInfoXML' not in p: return text
@@ -336,7 +316,9 @@ class ProxyRewrite:
         elif str(ProxyRewrite.dev1info[attrib]).lower() in headers[field]:
             headers[field] = str(ProxyRewrite.dev2info[attrib]).lower()
         if headers[field] != oldval:
-            print("%s: Replacing field %s: %s -> %s" % (headers['Host'], field, oldval, headers[field]))
+            print(
+                f"{headers['Host']}: Replacing field {field}: {oldval} -> {headers[field]}"
+            )
         return headers
 
     @staticmethod
@@ -353,7 +335,9 @@ class ProxyRewrite:
                 headers[field] = headers[field].replace(ProxyRewrite.dev1info[attrib], ProxyRewrite.dev2info[attrib])
 
         if headers[field] != oldval:
-            print("%s: Replacing field %s: %s -> %s" % (headers['Host'], field, oldval, headers[field]))
+            print(
+                f"{headers['Host']}: Replacing field {field}: {oldval} -> {headers[field]}"
+            )
         return headers
 
     @staticmethod
@@ -366,7 +350,9 @@ class ProxyRewrite:
             if attrib not in ProxyRewrite.dev1info.keys() or attrib not in ProxyRewrite.dev2info.keys(): continue
             val = val.replace(str(ProxyRewrite.dev1info[attrib]), str(ProxyRewrite.dev2info[attrib]))
             if val != oldval:
-                print("%s: Replacing %s -> %s" % (attrib, str(ProxyRewrite.dev1info[attrib]), str(ProxyRewrite.dev2info[attrib])))
+                print(
+                    f"{attrib}: Replacing {str(ProxyRewrite.dev1info[attrib])} -> {str(ProxyRewrite.dev2info[attrib])}"
+                )
         text = base64.b64encode(val)
         return text
 
@@ -383,7 +369,9 @@ class ProxyRewrite:
             if str(ProxyRewrite.dev1info[attrib]) not in val: continue
             val = val.replace(str(ProxyRewrite.dev1info[attrib]), str(ProxyRewrite.dev2info[attrib]))
             if headers[field] != oldval:
-                print("%s: %s Replacing %s: %s -> %s" % (headers["Host"], field, attrib, str(ProxyRewrite.dev1info[attrib]), str(ProxyRewrite.dev2info[attrib])))
+                print(
+                    f'{headers["Host"]}: {field} Replacing {attrib}: {str(ProxyRewrite.dev1info[attrib])} -> {str(ProxyRewrite.dev2info[attrib])}'
+                )
 
         # if device 1 is GSM and doesn't have an MEID, just insert device 2's MEID if it is a device that has an MEID
         if 'MobileEquipmentIdentifier' not in ProxyRewrite.dev1info and 'MobileEquipmentIdentifier' in ProxyRewrite.dev2info and 'imei' in val:
@@ -406,7 +394,9 @@ class ProxyRewrite:
                 body = body.replace(str(ProxyRewrite.dev1info[attrib]).lower(), str(ProxyRewrite.dev2info[attrib]).lower())
 
             #if body != oldbody and ProxyRewrite.dev1info[attrib] != ProxyRewrite.dev2info[attrib]:
-            print("%s: Replacing body value %s -> %s" % (hostname, str(ProxyRewrite.dev1info[attrib]), str(ProxyRewrite.dev2info[attrib])))
+            print(
+                f"{hostname}: Replacing body value {str(ProxyRewrite.dev1info[attrib])} -> {str(ProxyRewrite.dev2info[attrib])}"
+            )
         return body
 
     @staticmethod

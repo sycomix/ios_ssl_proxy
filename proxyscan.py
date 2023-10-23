@@ -72,9 +72,7 @@ class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
     def handle_error(self, request, client_address):
         # surpress socket/ssl related errors
         cls, e = sys.exc_info()[:2]
-        if cls is socket.error or cls is ssl.SSLError:
-            pass
-        else:
+        if cls is not socket.error and cls is not ssl.SSLError:
             return HTTPServer.handle_error(self, request, client_address)
 
 
@@ -87,11 +85,11 @@ class ProxyRewrite:
 
     @staticmethod
     def load_device_info(sn):
-        if '.xml' in sn:
-            device = plistlib.readPlist(sn)
-        else:
-            device = plistlib.readPlist("devices/%s.xml" % sn)
-        return device
+        return (
+            plistlib.readPlist(sn)
+            if '.xml' in sn
+            else plistlib.readPlist(f"devices/{sn}.xml")
+        )
 
     @staticmethod
     def intercept_this_host(hostname):
@@ -99,12 +97,7 @@ class ProxyRewrite:
         hostname = hostname.replace(':443','')
         if "fmip.icloud.com" in hostname: return False
         if hostname == "gsa.apple.com": return False
-        if hostname == "gsas.apple.com": return False
-        if hostname == "ppq.apple.com": return False
-        #if hostname == "albert.apple.com": return False
-        #if hostname == "static.ips.apple.com": return False
-        #if hostname == "captive.apple.com": return False
-        return True
+        return False if hostname == "gsas.apple.com" else hostname != "ppq.apple.com"
 
     @staticmethod
     def scan_headers_attribs(headers, attribs):
@@ -112,7 +105,7 @@ class ProxyRewrite:
         for attrib in attriblist:
             for (key, value) in headers.items():
                 if attrib in ProxyRewrite.dev1info and str(ProxyRewrite.dev1info[attrib]) in value:
-                    print("%s: %s" % (key, value))
+                    print(f"{key}: {value}")
 
     @staticmethod
     def scan_headers_attrib_binary_b64(headers, attrib):
@@ -122,7 +115,7 @@ class ProxyRewrite:
 
         for (key, value) in headers.items():
             if encoded_data in value:
-                print("%s: %s" % (key, value))
+                print(f"{key}: {value}")
 
     @staticmethod
     def scan_headers_attrib_binary_mac_b64(headers, attrib):
@@ -133,51 +126,51 @@ class ProxyRewrite:
 
         for (key, value) in headers.items():
             if encoded_data in value:
-                print("%s: %s" % (key, value))
+                print(f"{key}: {value}")
 
 
     @staticmethod
     def scan_body_attribs(body, attribs, hostname):
-        if body == None: return
+        if body is None: return
         attriblist = attribs.split(',')
         for attrib in attriblist:
             if attrib in ProxyRewrite.dev1info and str(ProxyRewrite.dev1info[attrib]) in body:
-                print('Host: %s (%s)' % (hostname, attrib))
-                print(str(body))
+                print(f'Host: {hostname} ({attrib})')
+                print(body)
                 return
 
     @staticmethod
     def scan_body_attrib_binary(body, attrib, hostname):
-        if body == None: return
+        if body is None: return
         if attrib not in ProxyRewrite.dev1info: return
         if '-' in ProxyRewrite.dev1info[attrib]: return
         binstr = binascii.unhexlify(ProxyRewrite.dev1info[attrib])
         encoded_data = base64.b64encode(binstr).replace('=', '')
 
         if binstr in body:
-            print('Host: %s (%s)' % (hostname, attrib))
-            print(str(body))
+            print(f'Host: {hostname} ({attrib})')
+            print(body)
             return
         if encoded_data in body:
-            print('Host: %s (%s)' % (hostname, attrib))
-            print(str(body))
+            print(f'Host: {hostname} ({attrib})')
+            print(body)
             return
 
     @staticmethod
     def scan_body_attrib_binary_mac(body, attrib, hostname):
-        if body == None: return
+        if body is None: return
         if attrib not in ProxyRewrite.dev1info: return
         value = str(ProxyRewrite.dev1info[attrib]).replace(':', '')
         binstr = binascii.unhexlify(value)
         encoded_data = base64.b64encode(binstr).replace('=', '')
 
         if binstr in body:
-            print('Host: %s (%s)' % (hostname, attrib))
-            print(str(body))
+            print(f'Host: {hostname} ({attrib})')
+            print(body)
             return
         if encoded_data in body:
-            print('Host: %s (%s)' % (hostname, attrib))
-            print(str(body))
+            print(f'Host: {hostname} ({attrib})')
+            print(body)
             return
 
     @staticmethod
@@ -196,8 +189,7 @@ class ProxyRewrite:
                     dec = decode(ext.get_data(), asn1Spec=_GeneralNames())
                 except PyAsn1Error:
                     continue
-                for i in dec[0]:
-                    altnames.append("DNS:%s" % i[0].asOctets())
+                altnames.extend(f"DNS:{i[0].asOctets()}" for i in dec[0])
         return altnames
 
 
@@ -232,11 +224,11 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
     # hack to handle so that we can ignore certain hostnames
     def handle(self):
         SO_ORIGINAL_DST = 80
-	dst = self.request.getsockopt(socket.SOL_IP, SO_ORIGINAL_DST, 16) # Get the original destination IP before iptables redirect
-	_, dst_port, ip1, ip2, ip3, ip4 = struct.unpack("!HHBBBB8x", dst)
-	dst_ip = '%s.%s.%s.%s' % (ip1,ip2,ip3,ip4)
-	peername = '%s:%s' % (self.request.getpeername()[0], self.request.getpeername()[1])
-        print('Client %s -> %s:%s' % (peername, dst_ip, dst_port))
+        dst = self.request.getsockopt(socket.SOL_IP, SO_ORIGINAL_DST, 16) # Get the original destination IP before iptables redirect
+        _, dst_port, ip1, ip2, ip3, ip4 = struct.unpack("!HHBBBB8x", dst)
+        dst_ip = f'{ip1}.{ip2}.{ip3}.{ip4}'
+        peername = f'{self.request.getpeername()[0]}:{self.request.getpeername()[1]}'
+        print(f'Client {peername} -> {dst_ip}:{dst_port}')
         # use transparent mode
         if ProxyRewrite.transparent == True and dst_port != 80 and dst_port != 5223:
             with self.lock:
@@ -297,7 +289,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             del self.headers['Proxy-Connection']
 
         if 'Host' in self.headers:
-            print("CONNECT %s" % (self.headers['Host']))
+            print(f"CONNECT {self.headers['Host']}")
 
         if os.path.isfile(self.cakey) and os.path.isfile(self.cacert) and os.path.isfile(self.certkey) and os.path.isdir(self.certdir) and ProxyRewrite.intercept_this_host(hostname):
             self.connect_intercept()
@@ -305,7 +297,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             self.connect_relay()
 
     def generate_cert(self, hostname):
-        certpath = "%s/%s.crt" % (self.certdir.rstrip('/'), hostname)
+        certpath = f"{self.certdir.rstrip('/')}/{hostname}.crt"
         # always use same cert for all *.icloud.com except for *-fmip.icloud.com
         if os.path.isfile(certpath): return certpath
         if 'icloud.com' in hostname and 'fmip.icloud.com' not in hostname:
@@ -315,7 +307,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         elif 'itunes.apple.com' in hostname:
             srvcertname = "server_certs/itunes.apple.com.crt"
         else:
-            srvcertname = "%s/%s.crt" % ('server_certs', hostname)
+            srvcertname = f"server_certs/{hostname}.crt"
         srvcert=None
         altnames=None
 
@@ -429,9 +421,9 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
 
         if req.path[0] == '/':
             if isinstance(self.connection, ssl.SSLSocket):
-                req.path = "https://%s%s" % (req.headers['Host'], req.path)
+                req.path = f"https://{req.headers['Host']}{req.path}"
             else:
-                req.path = "http://%s%s" % (req.headers['Host'], req.path)
+                req.path = f"http://{req.headers['Host']}{req.path}"
 
         req_body_modified = self.request_handler(req, req_body)
         if req_body_modified is False:
@@ -442,7 +434,11 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             req.headers['Content-length'] = str(len(req_body))
 
         u = urlparse.urlsplit(req.path)
-        scheme, netloc, path = u.scheme, u.netloc, (u.path + '?' + u.query if u.query else u.path)
+        scheme, netloc, path = (
+            u.scheme,
+            u.netloc,
+            f'{u.path}?{u.query}' if u.query else u.path,
+        )
         assert scheme in ('http', 'https')
         if netloc:
             if ':' in netloc: netloc = netloc.split(':')[0]
@@ -455,7 +451,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
 
         try:
             origin = (scheme, netloc)
-            if not origin in self.tls.conns:
+            if origin not in self.tls.conns:
                 if scheme == 'https':
                     self.tls.conns[origin] = httplib.HTTPSConnection(netloc, timeout=self.timeout)
                 else:
@@ -470,7 +466,11 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             setattr(res, 'response_version', version_table[res.version])
 
             # support streaming
-            if (not 'Content-Length' in res.headers and res.headers.get('Cache-Control') and 'no-store' in res.headers.get('Cache-Control')):
+            if (
+                'Content-Length' not in res.headers
+                and res.headers.get('Cache-Control')
+                and 'no-store' in res.headers.get('Cache-Control')
+            ):
                 self.response_handler(req, req_body, res, '')
                 setattr(res, 'headers', self.filter_headers(res.headers))
                 self.relay_streaming(res)
@@ -517,10 +517,10 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
         try:
             while True:
-                chunk = res.read(8192)
-                if not chunk:
+                if chunk := res.read(8192):
+                    self.wfile.write(chunk)
+                else:
                     break
-                self.wfile.write(chunk)
             self.wfile.flush()
         except socket.error:
             # connection closed by client
@@ -565,7 +565,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         elif encoding == 'deflate':
             data = zlib.compress(text)
         else:
-            raise Exception("Unknown Content-Encoding: %s" % encoding)
+            raise Exception(f"Unknown Content-Encoding: {encoding}")
         return data
 
     def decode_content_body(self, data, encoding):
@@ -584,7 +584,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             except zlib.error:
                 text = zlib.decompress(data, -zlib.MAX_WBITS)
         else:
-            raise Exception("Unknown Content-Encoding: %s" % encoding)
+            raise Exception(f"Unknown Content-Encoding: {encoding}")
         return text
 
     def send_cacert(self):
@@ -683,7 +683,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                 print with_color(32, "==== RESPONSE BODY ====\n%s\n" % res_body_text)
 
     def request_handler(self, req, req_body):
-        if ProxyRewrite.dev1info == None:
+        if ProxyRewrite.dev1info is None:
             return
 
         if 'InternationalMobileEquipmentIdentity' not in ProxyRewrite.dev1info:
@@ -705,7 +705,13 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             hostname = self.path.split(':')[0]
 
         req_body_plain = req_body
-        if 'Content-Encoding' in req.headers and req.headers['Content-Encoding'] == 'gzip' and 'Content-Length' in req.headers and req.headers['Content-Length'] > 0 and len(str(req_body)) > 0:
+        if (
+            'Content-Encoding' in req.headers
+            and req.headers['Content-Encoding'] == 'gzip'
+            and 'Content-Length' in req.headers
+            and req.headers['Content-Length'] > 0
+            and str(req_body) != ""
+        ):
             content_encoding = req.headers.get('Content-Encoding', 'identity')
             req_body_plain = self.decode_content_body(str(req_body), content_encoding)
 

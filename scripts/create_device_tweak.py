@@ -13,16 +13,16 @@ import datetime
 key_list = ["BuildVersion", "DeviceColor", "DeviceEnclosureColor", "HardwareModel", "MarketingName", "ModelNumber", "ProductType", "ProductVersion", "SerialNumber", "UniqueDeviceID", "WiFiAddress", "DieId", "EnclosureColor", "HardwareModel", "HardwarePlatform", "BluetoothAddress", "EthernetAddress", "UniqueChipID", "DieID", "MLBSerialNumber", "FirmwareVersion", "CPUArchitecture", "WirelessBoardSnum", "BasebandCertId", "BasebandChipID", "BasebandKeyHashInformation", "BasebandMasterKeyHash", "BasebandSerialNumber", "BasebandVersion", "BasebandRegionSKU", "BoardId", "InternationalMobileEquipmentIdentity", "MobileEquipmentIdentifier", "WirelessBoardSerialNumber", "RegulatoryModelNumber", "PkHash", "BasebandFirmwareManifestData", "ChipID", "ChipSerialNo", "CertID", "BasebandRegionSKU", "IntegratedCircuitCardIdentity", "CarrierBundleInfoArray", "InternationalMobileSubscriberIdentity"]
 
 def load_device_info(sn):
-    if '.xml' in sn:
-        device = plistlib.readPlist(sn)
-    else:
-        device = plistlib.readPlist("devices/%s.xml" % sn)
-    return device
+    return (
+        plistlib.readPlist(sn)
+        if '.xml' in sn
+        else plistlib.readPlist(f"devices/{sn}.xml")
+    )
 
 if sys.argv[1:]:
-        device = sys.argv[1]
+    device = sys.argv[1]
 else:
-    print("Usage: %s device" % sys.argv[0])
+    print(f"Usage: {sys.argv[0]} device")
     exit(0)
 
 p = dict()
@@ -30,27 +30,27 @@ p["shouldDisableCertificateValidation"] = True
 devinfo = load_device_info(device)
 for key in devinfo:
     if key in key_list:
-        if key == "HardwareModel":
+        if key == "BasebandVersion":
+            p['BasebandFirmwareVersion'] = devinfo[key]
+            p[key] = devinfo[key]
+        elif key == "DieID":
+            p['DieId'] = devinfo[key]
+        elif key == "EnclosureColor":
+            p['DeviceEnclosureColor'] = devinfo[key]
+        elif key == "EthernetAddress":
+            p['EthernetMacAddress'] = devinfo[key]
+        elif key == "HardwareModel":
             p['HWModelStr'] = devinfo[key]
             p[key] = devinfo[key]
         elif key == "MarketingName":
             p['marketing-name'] = devinfo[key]
-        elif key == "BasebandVersion":
-            p['BasebandFirmwareVersion'] = devinfo[key]
-            p[key] = devinfo[key]
         elif key == "WiFiAddress":
             p['WifiAddress'] = devinfo[key]
-        elif key == "EthernetAddress":
-            p['EthernetMacAddress'] = devinfo[key]
-        elif key == "DieID":
-            p['DieId'] = devinfo[key]
         elif key == "WirelessBoardSerialNumber":
             p['WirelessBoardSnum'] = devinfo[key]
-        elif key == "EnclosureColor":
-            p['DeviceEnclosureColor'] = devinfo[key]
         else:
             p[key] = devinfo[key]
-        print("%s = %s" % (key, devinfo[key]))
+        print(f"{key} = {devinfo[key]}")
 
 p['UniqueDeviceIDData'] = plistlib.Data(binascii.unhexlify(p['UniqueDeviceID']))
 p['mac-address-wifi0'] = plistlib.Data(binascii.unhexlify(p['WifiAddress'].replace(':','')))

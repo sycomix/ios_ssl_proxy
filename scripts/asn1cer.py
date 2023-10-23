@@ -122,16 +122,16 @@ class ASN1Element(object):
                 rv += "%d.%d"%(b/40,b%40)
             elif b>=0x80 or prev_byte!=None:
                 #multibyte
-                if prev_byte!=None:
+                if prev_byte is None:
+                    # this is first byte
+                    prev_byte=b
+                else:
                     # got 2nd byte
                     val =prev_byte & 0b01111111
                     val |= ((b &0b11111) << 7)
                     rv += ".%d"%(val)
                     prev_byte=None
-                    
-                else:
-                    # this is first byte
-                    prev_byte=b
+
             else:
                 rv += ".%d"%b
         return rv

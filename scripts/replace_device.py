@@ -17,17 +17,17 @@ import re
 import plistlib
 
 def load_device_info(sn):
-    if '.xml' in sn:
-        device = plistlib.readPlist(sn)
-    else:
-        device = plistlib.readPlist("devices/%s.xml" % sn)
-    return device
+    return (
+        plistlib.readPlist(sn)
+        if '.xml' in sn
+        else plistlib.readPlist(f"devices/{sn}.xml")
+    )
 
 if sys.argv[1:]:
-        device1 = sys.argv[1]
-        device2 = sys.argv[2]
+    device1 = sys.argv[1]
+    device2 = sys.argv[2]
 else:
-    print("Usage: %s <device1> <device2>" % sys.argv[0])
+    print(f"Usage: {sys.argv[0]} <device1> <device2>")
     exit(0)
 
 keylist = [ 'EthernetAddress', 'BasebandMasterKeyHash', 'ModelNumber', 'UniqueDeviceID', 'WiFiAddress', 'IntegratedCircuitCardIdentity', 'CPUArchitecture', 'DeviceColor', 'InternationalMobileSubscriberIdentity', 'InternationalMobileEquipmentIdentity', 'HardwarePlatform', 'MobileEquipmentIdentifier', 'SerialNumber', 'ProductType', 'BluetoothAddress', 'MLBSerialNumber', 'HardwareModel', 'EnclosureColor' ]

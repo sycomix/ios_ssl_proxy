@@ -16,17 +16,16 @@ import datetime
 if sys.argv[1:]:
         cmdtype = sys.argv[1]
 else:
-    print("Usage: %s unpack|pack" % sys.argv[0])
-    exit(0)
+        print(f"Usage: {sys.argv[0]} unpack|pack")
+        exit(0)
 
 def month_string_to_number(m):
-    mtable = [ 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+        mtable = [ 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-    try:
-        out = mtable[m-1]
-        return out
-    except:
-        raise ValueError('Not a month %d' % m)
+        try:
+                return mtable[m-1]
+        except:
+            raise ValueError('Not a month %d' % m)
 
 def file_sha256(filepath):
     with open(filepath, 'rb') as f:
@@ -35,7 +34,7 @@ def file_sha256(filepath):
 def extract_certs(filename):
         count=0
         st_key=bytearray(open(filename, 'rb').read())
-        dirname = ("%s" % os.path.splitext(os.path.basename(filename))[0])
+        dirname = f"{os.path.splitext(os.path.basename(filename))[0]}"
         os.mkdir(dirname)
 
         while 1: 
@@ -68,8 +67,7 @@ def unpack_certTable(filename):
                 clength = struct.unpack(">h", st_key[index+2:index+4])[0] + 5
                 ilength = struct.unpack("<I", st_key[index-4:index])[0]
                 blength = struct.unpack("<I", st_key[index-8:index-4])[0]
-                if (ilength + 8) & 7: calclength = ((ilength + 8) & (~7)) + 8
-                else: calclength = ilength + 8
+                calclength = ((ilength + 8) & (~7)) + 8 if (ilength + 8) & 7 else ilength + 8
                 if calclength != blength: print("%x != %x" % (calclength, blength))
                 print("index=%d, index_length=%x, block_length=%x, calclength=%x" % (index, ilength, blength, calclength))
                 certdata = st_key[index:index+ilength]
@@ -84,107 +82,105 @@ def unpack_certTable(filename):
                 index = index + clength
 
 def pack_certTable(path, filename):
-       index=0
-       count=0
-       outf = open(filename, "wb")
-
-       while 1:
-           filepath = os.path.join(path, "%d.cer" % count)
-           if os.path.isfile(filepath):
-               certdata=open(filepath, 'rb').read()
-               ilength = len(certdata)
-               calclength = ilength + 8
-               if (ilength + 8) & 7: calclength = ((ilength + 8) & (~7)) + 8
-               print("loading %s: len=%x blen=%x" % (filepath, ilength, calclength))
-               outf.write(struct.pack("<I", calclength))
-               outf.write(struct.pack("<I", ilength))
-               outf.write(certdata)
-               outf.write(b"\xFF" * (calclength - ilength - 8))
-           else: break
-           count = count + 1
-       outf.close()
+        index=0
+        count=0
+        with open(filename, "wb") as outf:
+                while 1:
+                    filepath = os.path.join(path, "%d.cer" % count)
+                    if os.path.isfile(filepath):
+                        certdata=open(filepath, 'rb').read()
+                        ilength = len(certdata)
+                        calclength = ilength + 8
+                        if (ilength + 8) & 7: calclength = ((ilength + 8) & (~7)) + 8
+                        print("loading %s: len=%x blen=%x" % (filepath, ilength, calclength))
+                        outf.write(struct.pack("<I", calclength))
+                        outf.write(struct.pack("<I", ilength))
+                        outf.write(certdata)
+                        outf.write(b"\xFF" * (calclength - ilength - 8))
+                    else: break
+                    count = count + 1
 
 def unpack_indexTable(filename, path):
-    inf = open(filename, 'rb')
-    outf = open("certsTable/certsIndex.txt", "wt")
-    count=0
-    while 1:
-        hashdata = inf.read(20)
-        if hashdata == None: return
-        if len(hashdata) <= 0: return
-        index = struct.unpack("<I", inf.read(4))[0] + 8
-        filepath = os.path.join(path, "%d.cer" % count)
-        outf.write(str("%s %s %d\n" % (filepath, binascii.hexlify(hashdata).decode("utf-8"), index)))
-        count=count + 1
+        inf = open(filename, 'rb')
+        outf = open("certsTable/certsIndex.txt", "wt")
+        count=0
+        while 1:
+                hashdata = inf.read(20)
+                if hashdata is None: return
+                if len(hashdata) <= 0: return
+                index = struct.unpack("<I", inf.read(4))[0] + 8
+                filepath = os.path.join(path, "%d.cer" % count)
+                outf.write(str("%s %s %d\n" % (filepath, binascii.hexlify(hashdata).decode("utf-8"), index)))
+                count=count + 1
 
 def pack_indexTable(path, filename):
-    outf = open(filename, "wb")
-    with open('certsTable/certsIndex.txt') as f:
-        for line in f:
-            parts = line.strip().split(' ')
-            #print(parts)
-            indexbin = struct.pack("<I", int(parts[2])-8)
-            outf.write(binascii.unhexlify(parts[1]))
-            outf.write(indexbin)
-    outf.close()
+        with open(filename, "wb") as outf:
+                with open('certsTable/certsIndex.txt') as f:
+                    for line in f:
+                        parts = line.strip().split(' ')
+                        #print(parts)
+                        indexbin = struct.pack("<I", int(parts[2])-8)
+                        outf.write(binascii.unhexlify(parts[1]))
+                        outf.write(indexbin)
 
 def int_to_bytes(x):
     return x.to_bytes((x.bit_length() // 8) + 1, byteorder='little')
 
 def split_hex(value):
-    if len(value) <=2: return value
-    value = value[2:] if len(value) % 2 == 0 else "0" + value[2:]
-    return " ".join(value[i:i+2] for i in range(0, len(value), 2))
+        if len(value) <=2: return value
+        value = value[2:] if len(value) % 2 == 0 else f"0{value[2:]}"
+        return " ".join(value[i:i+2] for i in range(0, len(value), 2))
 
-if cmdtype == 'unpack': 
-    print("Unpacking certsTable.data to certsTable directory...")
-    unpack_certTable("certsTable.data")
-    unpack_indexTable("certsIndex.data", "certsTable")
-elif cmdtype == 'pack':
-    print("Packing certsTable directory to certsTable.data...")
-    pack_certTable("./certsTable", "certsTable.data.new")
-    pack_indexTable("certsTable", "certsIndex.data.new")
-    allowed=plistlib.load(open("Allowed.plist", 'rb'), fmt=plistlib.FMT_BINARY)
-    for item in allowed['65F231AD2AF7F7DD52960AC702C10EEFA6D53B11']:
-        print(str(binascii.hexlify(item), 'ascii'))
-    pm=plistlib.load(open("manifest.data", 'rb'), fmt=plistlib.FMT_BINARY)
-    pm['certsIndex.data'] = file_sha256("certsIndex.data")
-    pm['certsTable.data'] = file_sha256("certsTable.data")
-    plistlib.dump(pm, open("manifest.data.new", 'wb'), fmt=plistlib.FMT_BINARY)
+if cmdtype == 'pack':
+        print("Packing certsTable directory to certsTable.data...")
+        pack_certTable("./certsTable", "certsTable.data.new")
+        pack_indexTable("certsTable", "certsIndex.data.new")
+        allowed=plistlib.load(open("Allowed.plist", 'rb'), fmt=plistlib.FMT_BINARY)
+        for item in allowed['65F231AD2AF7F7DD52960AC702C10EEFA6D53B11']:
+            print(str(binascii.hexlify(item), 'ascii'))
+        pm=plistlib.load(open("manifest.data", 'rb'), fmt=plistlib.FMT_BINARY)
+        pm['certsIndex.data'] = file_sha256("certsIndex.data")
+        pm['certsTable.data'] = file_sha256("certsTable.data")
+        plistlib.dump(pm, open("manifest.data.new", 'wb'), fmt=plistlib.FMT_BINARY)
 elif cmdtype == 'test':
-    if sys.argv[2:]:
-        filename = sys.argv[2]
-    else:
-        print("Usage: %s test <filename>" % sys.argv[0])
-        exit(0)
+        if sys.argv[2:]:
+                filename = sys.argv[2]
+        else:
+                print(f"Usage: {sys.argv[0]} test <filename>")
+                exit(0)
 
-    print("Creating TrustStore html entry...")
-    st_cert=open(filename, 'rb').read()
-    cert=crypto.load_certificate(crypto.FILETYPE_ASN1, st_cert)
+        print("Creating TrustStore html entry...")
+        st_cert=open(filename, 'rb').read()
+        cert=crypto.load_certificate(crypto.FILETYPE_ASN1, st_cert)
 
-    outline = ("<tr><td>%s </td>" % cert.get_subject().CN)
-    outline = ("%s<td> %s </td>" % (outline, cert.get_issuer().CN))
-    key = cert.get_pubkey()
-    if key.type() == crypto.TYPE_RSA:
-        outline = ("%s<td> %s </td>" % (outline, "RSA"))
-    else:
-        print(str(key.type()))
-    outline = ("%s<td> %d bits </td>" % (outline, key.bits()))
+        outline = f"<tr><td>{cert.get_subject().CN} </td>"
+        outline = f"{outline}<td> {cert.get_issuer().CN} </td>"
+        key = cert.get_pubkey()
+        if key.type() == crypto.TYPE_RSA:
+                outline = f"{outline}<td> RSA </td>"
+        else:
+                print(key.type())
+        outline = ("%s<td> %d bits </td>" % (outline, key.bits()))
 
-    sigal = str(cert.get_signature_algorithm(), 'ascii')
-    if sigal.startswith('sha1'): sigal = "SHA-1"
-    elif sigal.startswith('sha256'): sigal = "SHA-256"
-    elif sigal.startswith('sha384'): sigal = "SHA-384"
-    elif sigal.startswith('md5'): sigal = "MD5"
-    outline = ("%s<td> %s </td>" % (outline, sigal))
- 
-    serialnum = ('%X' % cert.get_serial_number())
-    if len(serialnum) % 2 != 0: serialnum = ("0%s" % serialnum)
-    outline = ("%s<td> %s </td>" % (outline, split_hex(serialnum)))
+        sigal = str(cert.get_signature_algorithm(), 'ascii')
+        if sigal.startswith('sha1'): sigal = "SHA-1"
+        elif sigal.startswith('sha256'): sigal = "SHA-256"
+        elif sigal.startswith('sha384'): sigal = "SHA-384"
+        elif sigal.startswith('md5'): sigal = "MD5"
+        outline = f"{outline}<td> {sigal} </td>"
 
-    expstr = datetime.datetime.strptime(str(cert.get_notAfter(),'ascii'), "%Y%m%d%H%M%SZ")
-    month = month_string_to_number(expstr.month)
-    exp = ("%.2d:%.2d:%.2d %s %s, %s" % (expstr.hour, expstr.minute, expstr.second, month, expstr.day, expstr.year))
-    outline = ("%s<td> %s </td>" % (outline, exp))
-    outline = ("%s<td> Always</td></tr>" % outline)
-    print(outline)
+        serialnum = ('%X' % cert.get_serial_number())
+        if len(serialnum) % 2 != 0:
+                serialnum = f"0{serialnum}"
+        outline = f"{outline}<td> {split_hex(serialnum)} </td>"
+
+        expstr = datetime.datetime.strptime(str(cert.get_notAfter(),'ascii'), "%Y%m%d%H%M%SZ")
+        month = month_string_to_number(expstr.month)
+        exp = ("%.2d:%.2d:%.2d %s %s, %s" % (expstr.hour, expstr.minute, expstr.second, month, expstr.day, expstr.year))
+        outline = f"{outline}<td> {exp} </td>"
+        outline = f"{outline}<td> Always</td></tr>"
+        print(outline)
+elif cmdtype == 'unpack':
+        print("Unpacking certsTable.data to certsTable directory...")
+        unpack_certTable("certsTable.data")
+        unpack_indexTable("certsIndex.data", "certsTable")

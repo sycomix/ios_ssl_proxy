@@ -18,9 +18,13 @@ key=None
 if sys.argv[1:]:
     filename = sys.argv[1]
 else:
-    print("Usage: %s <filename>" % sys.argv[0])
+    print(f"Usage: {sys.argv[0]} <filename>")
     exit(0)
 
 st_cert=open(filename, 'rb').read()
 cert = x509.load_der_x509_certificate(st_cert, default_backend())
-print(str(binascii.hexlify(x509.SubjectKeyIdentifier.from_public_key(cert.public_key()).digest)))
+print(
+    binascii.hexlify(
+        x509.SubjectKeyIdentifier.from_public_key(cert.public_key()).digest
+    )
+)

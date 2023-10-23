@@ -26,13 +26,13 @@ class SyslogClient(BaseService):
 
 def print_domain_values(ld, domain=None):
     if domain != None:
-        print(ld.get_value(domain=domain).keys()) 
+        print(ld.get_value(domain=domain).keys())
     else:
         for item in ld.get_value().keys():
             try:
                 val = ld.get_value(key=item)
-                if type(val) == plist.Data or type(val) == plist.Dict or type(val) == plist.Array: continue
-                print("%s = %s" % (str(item), val))
+                if type(val) in [plist.Data, plist.Dict, plist.Array]: continue
+                print(f"{str(item)} = {val}")
             except LockdownError:
                 continue
 

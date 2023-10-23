@@ -9,16 +9,16 @@ import plistlib
 from operator import xor
 
 def load_device_info(sn):
-    if '.xml' in sn:
-        device = plistlib.readPlist(sn)
-    else:
-        device = plistlib.readPlist("devices/%s.xml" % sn)
-    return device
+    return (
+        plistlib.readPlist(sn)
+        if '.xml' in sn
+        else plistlib.readPlist(f"devices/{sn}.xml")
+    )
 
 if sys.argv[1:]:
     device = sys.argv[1]
 else:
-    print("Usage: %s <device>" % sys.argv[0])
+    print(f"Usage: {sys.argv[0]} <device>")
     exit(0)
 
 devinfo = load_device_info(device)

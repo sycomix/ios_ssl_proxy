@@ -93,16 +93,12 @@ def on_message(message, data):
 		pname = message['payload']
 		print(pname)
 		fo3.write(pname+"\n")
-		if (pname == "CFWriteStreamWrite"):
-			fo2.write(data)
-		elif (pname == "CFReadStreamRead"):
-			fo2.write(data)
-		elif (pname == "SSLRead"):
-			fo.write(data)
-		elif (pname == "SSLWrite"):
-			fo.write(data)
-		elif (pname == "CC_SHA1"):
+		if pname == "CC_SHA1":
 			fo4.write(data)
+		elif pname in ["CFWriteStreamWrite", "CFReadStreamRead"]:
+			fo2.write(data)
+		elif pname in ["SSLRead", "SSLWrite"]:
+			fo.write(data)
 	#elif (pname == "CCDigest"):
 	#	fo2.write(data)
 	#elif (pname == "CCCryptorCreateWithMode"):

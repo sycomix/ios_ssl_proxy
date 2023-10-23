@@ -20,31 +20,31 @@ import plistlib
 if sys.argv[1:]:
         devicestr = sys.argv[1]
 else:
-    print("Usage: %s <device>" % sys.argv[0])
-    exit(0)
+        print(f"Usage: {sys.argv[0]} <device>")
+        exit(0)
 
 def load_device_info(sn):
-    if '.xml' in sn:
-        device = plistlib.readPlist(sn)
-    else:
-        device = plistlib.readPlist("devices/%s.xml" % sn)
-    return device
+        return (plistlib.readPlist(sn)
+                if '.xml' in sn else plistlib.readPlist(f"devices/{sn}.xml"))
 
 devinfo = load_device_info(devicestr)
 
 for file in os.listdir("logs"):
-    #print("filename %s" % file)
-    for key in devinfo:
-        if (key == 'ProductName' or key == 'DeviceClass'): continue
-        if isinstance(devinfo[key], str):
-            if devinfo[key] == '' or len(devinfo[key]) < 3: continue
-            data=bytes(open(os.path.join("logs", file), 'rb').read())
-            if devinfo[key] in data: print("%s %s in %s" % (key, devinfo[key], file))
-            #print("%s: %s" % (key, devinfo[key]))
-        elif isinstance(devinfo[key], bool):
-            continue
-        elif isinstance(devinfo[key], int):
-            if len(str(devinfo[key])) > 2 and str(devinfo[key]) in data: print("%s %s in %s" % (key, devinfo[key], file))
-        elif isinstance (devinfo[key], plistlib.Data):
-            datastr = str(devinfo[key].data)
-            if len(datastr)> 2 and datastr in data : print("%s %s in %s" % (key, devinfo[key], file))
+            #print("filename %s" % file)
+        for key in devinfo:
+                if key in ['ProductName', 'DeviceClass']: continue
+                if isinstance(devinfo[key], str):
+                        if devinfo[key] == '' or len(devinfo[key]) < 3: continue
+                        data=bytes(open(os.path.join("logs", file), 'rb').read())
+                        if devinfo[key] in data:
+                                print(f"{key} {devinfo[key]} in {file}")
+                            #print("%s: %s" % (key, devinfo[key]))
+                elif isinstance(devinfo[key], bool):
+                    continue
+                elif isinstance(devinfo[key], int):
+                        if len(str(devinfo[key])) > 2 and str(devinfo[key]) in data:
+                                print(f"{key} {devinfo[key]} in {file}")
+                elif isinstance (devinfo[key], plistlib.Data):
+                        datastr = str(devinfo[key].data)
+                        if len(datastr)> 2 and datastr in data:
+                                print(f"{key} {devinfo[key]} in {file}")

@@ -18,17 +18,17 @@ def get_ip_address(ifname):
 
 class DNSQuery:
   def __init__(self, data):
-    self.data=data
-    self.domain=''
+      self.data=data
+      self.domain=''
 
-    tipo = (ord(data[2]) >> 3) & 15   # Opcode bits
-    if tipo == 0:                     # Standard query
-      ini=12
-      lon=ord(data[ini])
-      while lon != 0:
-        self.domain+=data[ini+1:ini+lon+1]+'.'
-        ini+=lon+1
-        lon=ord(data[ini])
+      tipo = (ord(data[2]) >> 3) & 15   # Opcode bits
+      if tipo == 0:                 # Standard query
+          ini=12
+          lon=ord(data[ini])
+          while lon != 0:
+              self.domain += f'{data[ini + 1:ini + lon + 1]}.'
+              ini+=lon+1
+              lon=ord(data[ini])
 
   def answer(self, ip):
     packet=''

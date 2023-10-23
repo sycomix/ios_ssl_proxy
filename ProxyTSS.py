@@ -16,9 +16,13 @@ class ProxyTSS:
         mobj = jobj[model]
         self.BoardConfig = mobj['board']
         self.BuildID = mobj['firmwares'][0]['build']
-        print("%s, %s" % (self.BoardConfig, self.BuildID))
-        r = requests.get('http://api.ineal.me/tss/manifest/%s/%s' % (self.BoardConfig, self.BuildID))
-        self.Manifest = r.text.replace('<string>$ECID$</string>', '<integer>%s</integer>' % (self.ECID))
+        print(f"{self.BoardConfig}, {self.BuildID}")
+        r = requests.get(
+            f'http://api.ineal.me/tss/manifest/{self.BoardConfig}/{self.BuildID}'
+        )
+        self.Manifest = r.text.replace(
+            '<string>$ECID$</string>', f'<integer>{self.ECID}</integer>'
+        )
         #r = requests.get('http://api.ineal.me/tss/buildmanifest/%s/%s' % (self.BoardConfig, self.BuildID))
         #print(r.text)
 

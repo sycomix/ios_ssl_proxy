@@ -63,9 +63,7 @@ class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
     def handle_error(self, request, client_address):
         # surpress socket/ssl related errors
         cls, e = sys.exc_info()[:2]
-        if cls is socket.error or cls is ssl.SSLError:
-            pass
-        else:
+        if cls is not socket.error and cls is not ssl.SSLError:
             return HTTPServer.handle_error(self, request, client_address)
 
 class ProxyRequestHandler(BaseHTTPRequestHandler):
@@ -114,7 +112,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             with self.lock:
                 if ProxyRewrite.use_rewrite_pubkey:
                     certpath, keysize = ProxyRewrite.rewrite_cert_pubkey(self.certdir, self.certKey, self.issuerCert, self.issuerKey, dst_ip, dst_port)
-                    certkey = ("ssl/keys/cert%s.key" % keysize)
+                    certkey = f"ssl/keys/cert{keysize}.key"
                 else:
                     certpath = ProxyRewrite.generate_cert(self.certdir, self.certKey, self.issuerCert, self.issuerKey, dst_ip, dst_port)
                     certkey = self.certkey
@@ -127,13 +125,13 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                 except ssl.SSLError as e:
                     print("SSLError occurred on %s: %r" % (dst_ip,e))
                     self.finish()
-        elif ProxyRewrite.server_address != dst_ip and (dst_port == 443 or dst_port == 993):
-            print("Handling %s:%s" % (dst_ip, dst_port))
+        elif ProxyRewrite.server_address != dst_ip and dst_port in [443, 993]:
+            print(f"Handling {dst_ip}:{dst_port}")
             certkey = None
             with self.lock:
                 if ProxyRewrite.use_rewrite_pubkey:
                     certpath, keysize = ProxyRewrite.rewrite_cert_pubkey(self.certdir, self.certKey, self.issuerCert, self.issuerKey, dst_ip, dst_port)
-                    certkey = ("ssl/keys/cert%s.key" % keysize)
+                    certkey = f"ssl/keys/cert{keysize}.key"
                 else:
                     certpath = ProxyRewrite.generate_cert(self.certdir, self.certKey, self.issuerCert, self.issuerKey, dst_ip, dst_port)
                     certkey = self.certkey
@@ -190,7 +188,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
 
     def do_CONNECT(self):
         hostname = hostname = ProxyRewrite.get_hostname(self.headers, self.path)
-        print("CONNECT %s" % self.path)
+        print(f"CONNECT {self.path}")
 
         if 'Proxy-Connection' in self.headers:
             del self.headers['Proxy-Connection']
@@ -213,7 +211,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         with self.lock:
             if ProxyRewrite.use_rewrite_pubkey:
                 certpath, keysize = ProxyRewrite.rewrite_cert_pubkey(self.certdir, self.certKey, self.issuerCert, self.issuerKey, hostname, 443)
-                certkey = ("ssl/keys/cert%s.key" % keysize)
+                certkey = f"ssl/keys/cert{keysize}.key"
             else:
                 certpath = ProxyRewrite.generate_cert(self.certdir, self.certKey, self.issuerCert, self.issuerKey, hostname, 443)
                 certkey = self.certkey
@@ -254,10 +252,10 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
 
-        print("CONNECT %s" % self.path)
+        print(f"CONNECT {self.path}")
         if 'Proxy-Connection' in self.headers:
             del self.headers['Proxy-Connection']
-        print(str(self.headers))
+        print(self.headers)
 
         conns = [self.connection, s]
         self.close_connection = 0
@@ -291,9 +289,9 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
 
         if req.path[0] == '/':
             if isinstance(self.connection, ssl.SSLSocket):
-                req.path = "https://%s%s" % (req.headers['Host'], req.path)
+                req.path = f"https://{req.headers['Host']}{req.path}"
             else:
-                req.path = "http://%s%s" % (req.headers['Host'], req.path)
+                req.path = f"http://{req.headers['Host']}{req.path}"
 
         # rewrite URL path if needed
         req.path = ProxyRewrite.rewrite_path(req.headers, req.path)
@@ -307,7 +305,11 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             req.headers['Content-length'] = str(len(req_body))
 
         u = urlparse.urlsplit(req.path)
-        scheme, netloc, path = u.scheme, u.netloc, (u.path + '?' + u.query if u.query else u.path)
+        scheme, netloc, path = (
+            u.scheme,
+            u.netloc,
+            f'{u.path}?{u.query}' if u.query else u.path,
+        )
         assert scheme in ('http', 'https')
         if netloc:
             if ':' in netloc: netloc = netloc.split(':')[0]
@@ -321,7 +323,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
 
         try:
             origin = (scheme, netloc)
-            if not origin in self.tls.conns:
+            if origin not in self.tls.conns:
                 if scheme == 'https':
                     self.tls.conns[origin] = httplib.HTTPSConnection(netloc, timeout=self.timeout)
                 else:
@@ -339,7 +341,11 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                 res.headers['Content-Length'] = str(0)
 
             # support streaming
-            if (not 'Content-Length' in res.headers and res.headers.get('Cache-Control') and 'no-store' in res.headers.get('Cache-Control')):
+            if (
+                'Content-Length' not in res.headers
+                and res.headers.get('Cache-Control')
+                and 'no-store' in res.headers.get('Cache-Control')
+            ):
                 self.response_handler(req, req_body, res, '')
                 setattr(res, 'headers', self.filter_headers(res.headers))
                 self.relay_streaming(res)
@@ -386,10 +392,10 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
         try:
             while True:
-                chunk = res.read(8192)
-                if not chunk:
+                if chunk := res.read(8192):
+                    self.wfile.write(chunk)
+                else:
                     break
-                self.wfile.write(chunk)
             self.wfile.flush()
         except socket.error:
             # connection closed by client
@@ -435,7 +441,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         elif encoding == 'deflate':
             data = zlib.compress(text)
         else:
-            raise Exception("Unknown Content-Encoding: %s" % encoding)
+            raise Exception(f"Unknown Content-Encoding: {encoding}")
         return data
 
     def decode_content_body(self, data, encoding):
@@ -454,7 +460,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             except zlib.error:
                 text = zlib.decompress(data, -zlib.MAX_WBITS)
         else:
-            raise Exception("Unknown Content-Encoding: %s" % encoding)
+            raise Exception(f"Unknown Content-Encoding: {encoding}")
         return text
 
     def send_cacert(self, path):
@@ -560,7 +566,13 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
 
         # should be able to safely modify body here:
         req_body_plain = req_body
-        if 'Content-Encoding' in req.headers and req.headers['Content-Encoding'] == 'gzip' and 'Content-Length' in req.headers and req.headers['Content-Length'] > 0 and len(str(req_body)) > 0:
+        if (
+            'Content-Encoding' in req.headers
+            and req.headers['Content-Encoding'] == 'gzip'
+            and 'Content-Length' in req.headers
+            and req.headers['Content-Length'] > 0
+            and str(req_body) != ""
+        ):
             content_encoding = req.headers.get('Content-Encoding', 'identity')
             req_body_plain = self.decode_content_body(str(req_body), content_encoding)
 
@@ -574,16 +586,19 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
 
         if 'Host' in req.headers and 'albert.apple.com' in req.headers['Host'] and 'drmHandshake' in self.path:
             bodypl = plistlib.readPlistFromString(req_body_modified)
-            with open(ProxyRewrite.log_filename("fdr_%s.bin" % binascii.hexlify(bodypl['HandshakeRequestMessage'].data)), "wb") as f: f.write(bodypl['FDRBlob'].data)
+            with open(ProxyRewrite.log_filename(f"fdr_{binascii.hexlify(bodypl['HandshakeRequestMessage'].data)}.bin"), "wb") as f: f.write(bodypl['FDRBlob'].data)
         # *TODO* implement protobuf decoder here
-        if req_body_modified != req_body_plain and 'Content-Encoding' in req.headers and req.headers['Content-Encoding'] == 'gzip' and 'Content-Length' in req.headers and req.headers['Content-Length'] > 0 and len(str(req_body_modified)) > 0:
+        if (
+            req_body_modified != req_body_plain
+            and 'Content-Encoding' in req.headers
+            and req.headers['Content-Encoding'] == 'gzip'
+            and 'Content-Length' in req.headers
+            and req.headers['Content-Length'] > 0
+            and str(req_body_modified) != ""
+        ):
             content_encoding = req.headers.get('Content-Encoding', 'identity')
             req_body_modified = self.encode_content_body(str(req_body_modified), content_encoding)
 
-        #if ProxyRewrite.file_logging and 'albert.apple.com' in hostname and self.path.endswith("deviceservices/drmHandshake"):
-        #    fdrblob = ProxyRewrite.save_plist_body_attrib(req_body_modified, 'FDRBlob', '')
-        #    #if fdrblob != None:
-        #    #    with open(ProxyRewrite.log_filename("fdr.bin", "wb")) as f: f.write(fdrblob)
         elif 'gs-loc.apple.com' in hostname or 'gsp-ssl.ls.apple.com' in hostname or 'gsp64-ssl.ls.apple.com' in hostname or 'gsp10-ssl.apple.com' in hostname:
             ProxyRewrite.locationdDecode2(req_body_modified)
         #elif 'identity.apple.com' in hostname:

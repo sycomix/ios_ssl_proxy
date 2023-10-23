@@ -12,7 +12,7 @@ if sys.argv[3:]:
     dpath = sys.argv[3]
 
 else:
-    print("Usage: %s <hashmap> <backup path> <destination path>" % sys.argv[0])
+    print(f"Usage: {sys.argv[0]} <hashmap> <backup path> <destination path>")
     exit(0)
     
 def traverse(a, hashdict):

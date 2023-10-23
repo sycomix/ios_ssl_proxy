@@ -7,17 +7,16 @@ import time
 def on_message(message, data):
     if 'payload' in message:
         pname = message['payload']
-        filename = ("%s.bin" % pname)
-        print("Writing %s" % filename)
-        fo = open(filename, "wb")
-        fo.write(data)
-        fo.close()
+        filename = f"{pname}.bin"
+        print(f"Writing {filename}")
+        with open(filename, "wb") as fo:
+            fo.write(data)
 
 def main(target_process):
-        if os.path.exists("%s_dump" % target_process) == False:
-            os.mkdir("%s_dump" % target_process)
-        session = frida.get_usb_device().attach(target_process)
-	script = session.create_script("""
+    if os.path.exists(f"{target_process}_dump") == False:
+        os.mkdir(f"{target_process}_dump")
+    session = frida.get_usb_device().attach(target_process)
+    script = session.create_script("""
 		var ranges = Process.enumerateRangesSync({protection: 'r--', coalesce: true});
 		var range;
 		for (var i=0; i<ranges.length; i++) {
@@ -40,11 +39,11 @@ def main(target_process):
 		}
 """ % (target_process, target_process))
 
-        script.on('message', on_message)
-        script.load()
-        raw_input('[!] Press <Enter> at any time to detach from instrumented program.\n\n')
-        session.detach()
-        sys.exit(0)
+    script.on('message', on_message)
+    script.load()
+    raw_input('[!] Press <Enter> at any time to detach from instrumented program.\n\n')
+    session.detach()
+    sys.exit(0)
 
 if __name__ == '__main__':
 	if len(sys.argv) < 2:

@@ -54,10 +54,10 @@ def on_message(message, data):
 		pname = message['payload']
 		print(pname)
 		fo3.write(pname+"\n")
-		if (pname == "CC_SHA256"):
-			fo2.write(data)
-		if (pname == "CC_SHA1"):
+		if pname == "CC_SHA1":
 			fo4.write(data)
+		elif pname == "CC_SHA256":
+			fo2.write(data)
 	#elif (pname == "CCDigest"):
 	#	fo2.write(data)
 	#elif (pname == "CCCryptorCreateWithMode"):

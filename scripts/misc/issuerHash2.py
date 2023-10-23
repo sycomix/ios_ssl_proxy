@@ -11,8 +11,8 @@ if sys.argv[2:]:
         filename = sys.argv[1]
         exphash = sys.argv[2]
 else:
-    print("Usage: %s <filename> <hash>" % sys.argv[0])
-    exit(0)
+        print(f"Usage: {sys.argv[0]} <filename> <hash>")
+        exit(0)
 
 def remove_bytes(buffer, start, end):
     fmt = '%ds %dx %ds' % (start, end-start, len(buffer)-end)  # 3 way split

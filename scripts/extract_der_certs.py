@@ -9,8 +9,8 @@ import os
 if sys.argv[1:]:
         filename = sys.argv[1]
 else:
-    print("Usage: %s <filename>" % sys.argv[0])
-    exit(0)
+        print(f"Usage: {sys.argv[0]} <filename>")
+        exit(0)
 
 def extract_certs(filename):
 	count=0

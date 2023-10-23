@@ -6,11 +6,10 @@ import time
 def on_message(message, data):
     if 'payload' in message:
         pname = message['payload']
-        filename = ("%s.bin" % pname)
-        print("Writing %s" % filename)
-        fo = open(filename, "wb")
-        fo.write(data)
-        fo.close()
+        filename = f"{pname}.bin"
+        print(f"Writing {filename}")
+        with open(filename, "wb") as fo:
+            fo.write(data)
 
 def main(target_process):
 	session = frida.get_usb_device().attach(target_process)

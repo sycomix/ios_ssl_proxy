@@ -6,16 +6,15 @@ import time
 def on_message(message, data):
     if 'payload' in message:
         pname = message['payload']
-        filename = ("%s.bin" % pname)
-        print("Writing %s" % filename)
-        fo = open(filename, "wb")
-        fo.write(data)
-        fo.close()
+        filename = f"{pname}.bin"
+        print(f"Writing {filename}")
+        with open(filename, "wb") as fo:
+            fo.write(data)
 
 def list_imports(target_process):
-	session = frida.get_usb_device().attach(target_process)
-        print("Listing imports for %s:" % target_process)
-        script = session.create_script("""
+    session = frida.get_usb_device().attach(target_process)
+    print(f"Listing imports for {target_process}:")
+    script = session.create_script("""
                 var modules = Process.enumerateModulesSync();
                 var module;
                 for (var i=0; i<modules.length; i++) {
@@ -24,9 +23,9 @@ def list_imports(target_process):
                 }
 """)
 
-        script.on('message', on_message)
-        script.load()
-        session.detach()
+    script.on('message', on_message)
+    script.load()
+    session.detach()
 
 if __name__ == '__main__':
 	if len(sys.argv) < 2:

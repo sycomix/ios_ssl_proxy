@@ -46,27 +46,30 @@ class iCloud:
 
     @staticmethod
     def encode(val1, val2):
-        return str(base64.b64encode("%s:%s" % (val1, val2)))
+        return str(base64.b64encode(f"{val1}:{val2}"))
 
     def authenticate(self, appleid, password):
-        headers = {'Authorization': 'Basic %s' % iCloud.encode(appleid, password)}
-        r = requests.get('https://setup.icloud.com/setup/authenticate/%s' % appleid, headers=headers)
+        headers = {'Authorization': f'Basic {iCloud.encode(appleid, password)}'}
+        r = requests.get(
+            f'https://setup.icloud.com/setup/authenticate/{appleid}',
+            headers=headers,
+        )
         if r.status_code == 401:
-            print("login failed for %s" % appleid)
+            print(f"login failed for {appleid}")
             exit(-1)
         elif r.status_code == 200:
             p = plistlib.readPlistFromString(r.text)
             self.dsPrsID = p['appleAccountInfo']['dsPrsID']
-            self.mmeAuthToken = p['tokens']['mmeAuthToken']       
-            print("dsPrsID=%s, mmeAuthToken=%s" % (self.dsPrsID, self.mmeAuthToken))
+            self.mmeAuthToken = p['tokens']['mmeAuthToken']
+            print(f"dsPrsID={self.dsPrsID}, mmeAuthToken={self.mmeAuthToken}")
 
     def getAccountSettings(self):
         Client_Info = "<iPhone2,1> <iPhone OS;6.1.6;10B500> <com.apple.AppleAccount/1.0 ((null)/(null))>"
         USER_AGENT_UBD = "ubd (unknown version) CFNetwork/548.1.4 Darwin/11.0.0"
-        headers = { 
-            'Authorization': 'Basic %s' % iCloud.encode(self.dsPrsID, self.mmeAuthToken),
+        headers = {
+            'Authorization': f'Basic {iCloud.encode(self.dsPrsID, self.mmeAuthToken)}',
             "X-MMe-Client-Info": Client_Info,
-            "User-Agent": USER_AGENT_UBD
+            "User-Agent": USER_AGENT_UBD,
         }
         print('https://setup.icloud.com/setup/get_account_settings')
         r = requests.get('https://setup.icloud.com/setup/get_account_settings', headers=headers)
@@ -90,20 +93,23 @@ class iCloud:
     def getBackupId(self):
         USER_AGENT_MOBILE_BACKUP = "MobileBackup/6.1.6 (10B500; iPhone2,1)"
         Client_Info = "<iPhone2,1> <iPhone OS;6.1.6;10B500> <com.apple.AppleAccount/1.0 ((null)/(null))>"
-        auth = "X-MobileMe-AuthToken %s" % base64.b64encode("%s:%s" % (self.dsPrsID, self.mmeAuthToken))
+        auth = f'X-MobileMe-AuthToken {base64.b64encode(f"{self.dsPrsID}:{self.mmeAuthToken}")}'
         headers = {"Authorization": auth,
                         "X-MMe-Client-Info": Client_Info,
                         "User-Agent": USER_AGENT_MOBILE_BACKUP,
                         "X-Apple-MBS-Protocol-Version": "1.7" }
 
-        r = requests.get('https://'+self.mobilebackup_host+'/mbs/%s' % self.dsPrsID, headers=headers)
+        r = requests.get(
+            f'https://{self.mobilebackup_host}' + f'/mbs/{self.dsPrsID}',
+            headers=headers,
+        )
         print(r.status_code)
         print(r.text)
 
     def mobileBackupRequest(self, method, url, msg=None, body=""):
         USER_AGENT_MOBILE_BACKUP = "MobileBackup/6.1.6 (10B500; iPhone2,1)"
         Client_Info = "<iPhone2,1> <iPhone OS;6.1.6;10B500> <com.apple.AppleAccount/1.0 ((null)/(null))>"
-        auth = "X-MobileMe-AuthToken %s" % base64.b64encode("%s:%s" % (self.dsPrsID, self.mmeAuthToken))
+        auth = f'X-MobileMe-AuthToken {base64.b64encode(f"{self.dsPrsID}:{self.mmeAuthToken}")}'
         headers = {"Authorization": auth,
                         "X-MMe-Client-Info": Client_Info,
                         "User-Agent": USER_AGENT_MOBILE_BACKUP,
@@ -112,7 +118,7 @@ class iCloud:
         return probobuf_request(self.mobilebackup_host, method, url, body, headers, msg)
     
     def getAccount(self):
-        return self.mobileBackupRequest("GET", "/mbs/%s" % self.dsPrsID, MBSAccount)
+        return self.mobileBackupRequest("GET", f"/mbs/{self.dsPrsID}", MBSAccount)
 
 if sys.argv[2:]:
     appleid = sys.argv[1]

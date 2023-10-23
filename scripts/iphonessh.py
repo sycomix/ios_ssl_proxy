@@ -38,20 +38,20 @@ def exec_long_command(ssh, command):
 
 def getPID(ssh, name, verbose=True):
     try:
-        stdin, stdout, stderr = ssh.exec_command("pidof " + name)
+        stdin, stdout, stderr = ssh.exec_command(f"pidof {name}")
         line = stdout.readline().strip('\n')
-        if verbose == True:
-		if line != '': return "\t%s running (pid=%s)" % (name, line)
-		else: return "\t%s not running" % name
-	else:
-		return line
+        if verbose != True:
+            return line
+        if line != '': return "\t%s running (pid=%s)" % (name, line)
+        else: return "\t%s not running" % name
     except  CalledProcessError:
         return ''
 
 def filePathExists(ssh, path):
-    stdin, stdout, stderr = ssh.exec_command("if test -f %s; then echo 'true'; else echo 'false'; fi" % (path))
-    if 'true' in stdout.readline().strip(): return True
-    return False
+    stdin, stdout, stderr = ssh.exec_command(
+        f"if test -f {path}; then echo 'true'; else echo 'false'; fi"
+    )
+    return 'true' in stdout.readline().strip()
 
 ssh = paramiko.SSHClient()
 ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())

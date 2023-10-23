@@ -88,9 +88,7 @@ def on_message(message, data):
 	pname = message['payload']
 	print(pname)
 	fo3.write(pname+"\n")
-	if (pname == "CFWriteStreamWrite"):
-		fo.write(data)
-	elif (pname == "SSLRead"):
+	if pname in ["CFWriteStreamWrite", "SSLRead"]:
 		fo.write(data)
 	#elif (pname == "CCDigest"):
 	#	fo2.write(data)

@@ -11,7 +11,7 @@ def rewrite_der_cert(data, key=None):
     algtype = cert.get_signature_algorithm()
     keysize = cert.get_pubkey().bits()
     print(algtype)
-    if key == None:
+    if key is None:
         # create a new key pair
         key = crypto.PKey()
         key.generate_key(crypto.TYPE_RSA, keysize)
@@ -21,9 +21,7 @@ def rewrite_der_cert(data, key=None):
         cert.sign(key, "sha256")
     elif (algtype.startswith('sha1')):
         cert.sign(key, "sha1")
-    dercert = crypto.dump_certificate(crypto.FILETYPE_ASN1, cert)
-    #derkey = crypto.dump_privatekey(crypto.FILETYPE_ASN1, key)
-    return dercert
+    return crypto.dump_certificate(crypto.FILETYPE_ASN1, cert)
 
 def get_cert_info(data):
     if (data.startswith("\x30\x82")):
@@ -35,11 +33,11 @@ def get_cert_info(data):
     return algtype, keysize
 
 if sys.argv[1:]:
-        filename = sys.argv[1]
+    filename = sys.argv[1]
 else:
-    print("Usage: %s <cert filename>" % sys.argv[0])
+    print(f"Usage: {sys.argv[0]} <cert filename>")
     exit(0)
-    
+
 st_cert=open(filename, 'rb').read()
 print(get_cert_info(st_cert))
 #certdata = rewrite_der_cert(st_cert)
